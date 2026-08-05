@@ -52,10 +52,17 @@ jobs:
       - run: pnpm -w run test
 
       # --- live probe: boot the API, wait for readiness, fire the concurrency burst ---
-      - run: pnpm --filter api start &
-      - run: ./probes/wait-ready.sh http://localhost:3000/readyz 60
+      # All in one step: a process backgrounded in an Actions step does NOT survive
+      # into the next step, so start + wait + probe + teardown must share one shell.
       - name: Concurrency invariant probe
-        run: node ./probes/concurrency.mjs http://localhost:3000
+        run: |
+          pnpm --filter api start &
+          SERVER_PID=$!
+          bash probes/wait-ready.sh http://localhost:3000/readyz 60
+          node probes/concurrency.mjs http://localhost:3000
+          STATUS=$?
+          kill "$SERVER_PID" 2>/dev/null || true
+          exit $STATUS
         # concurrency.mjs exits NON-ZERO if the invariant breaks (double-vote, lost
         # update, or any 5xx under the burst).
 
