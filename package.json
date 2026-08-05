@@ -1,0 +1,18 @@
+{
+  "name": "openbuild-gallery",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "pnpm@9.15.0",
+  "description": "A hiring sandbox: a small, deployed, open-source gallery of tiny app-clones that candidates ship features into. PR quality is the interview signal.",
+  "scripts": {
+    "lint": "prettier --check \"**/*.{ts,mjs,js,json,md,yml,yaml}\"",
+    "format": "prettier --write \"**/*.{ts,mjs,js,json,md,yml,yaml}\"",
+    "typecheck": "pnpm -r typecheck",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "dev": "pnpm --filter api dev"
+  },
+  "devDependencies": {
+    "prettier": "^3.4.2"
+  }
+}

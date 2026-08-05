@@ -1,0 +1,4 @@
+# You own the whole repo: every PR requires your review before it can merge to main.
+# Replace @your-handle with your GitHub username after you create the repo, then turn on
+# branch protection for `main` (require PR review + require the pr-checks status check).
+* @your-handle

@@ -1,0 +1,64 @@
+# PR gate for OpenBuild Gallery — encodes the bar: green-from-clean-checkout + a live concurrency probe.
+# SECURITY: uses `pull_request` (NOT `pull_request_target`) and least-privilege perms, so a fork PR
+# cannot read repo secrets. Prod deploy happens ONLY on merge to main (a separate workflow), never here.
+name: pr-checks
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:test@localhost:5432/app?schema=public
+      PORT: '3000'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: app
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@v4 # PR HEAD only; no secrets exposed to fork code
+
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: pnpm }
+
+      - run: pnpm install --frozen-lockfile
+
+      # --- generate client + apply migrations to a fresh DB ---
+      - run: pnpm --filter api exec prisma generate
+      - run: pnpm --filter api exec prisma migrate deploy
+      - run: pnpm --filter api exec prisma db seed
+
+      # --- static gates ---
+      - run: pnpm -w run lint
+      - run: pnpm -w run typecheck
+
+      # --- THE WHOLE SUITE, from a clean checkout (the "ships red" gate) ---
+      - run: pnpm -w run test
+
+      # --- live probe: boot the API, wait for readiness, fire the concurrency burst ---
+      - run: pnpm --filter api start &
+      - run: ./probes/wait-ready.sh http://localhost:3000/readyz 60
+      - name: Concurrency invariant probe
+        run: node ./probes/concurrency.mjs http://localhost:3000
+        # concurrency.mjs exits NON-ZERO if the invariant breaks (double-vote, lost
+        # update, or any 5xx under the burst).
+
+  # The reviewer bot (separate workflow, bot identity, least-privilege token) reads
+  # these results + the PR's preview URL, re-probes the live preview, scores against
+  # the rubric, and comments. It never merges — you do, only from main.
