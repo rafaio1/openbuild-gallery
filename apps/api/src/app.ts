@@ -3,6 +3,7 @@ import cors from '@fastify/cors';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from './db';
+import { registerShortlinkRoutes } from './shortlink-routes';
 
 /**
  * OpenBuild Gallery API — the seed product is a "Poll" clone.
@@ -63,6 +64,9 @@ export function buildApp(): FastifyInstance {
   app.register(cors, {
     origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : true,
   });
+
+  // Register shortlink clone routes
+  registerShortlinkRoutes(app);
 
   app.get('/healthz', async () => ({ status: 'ok' }));
 
